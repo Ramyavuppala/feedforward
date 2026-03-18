@@ -4,12 +4,53 @@ const Food = require('../models/Food');
 const Notification = require('../models/Notification');
 const { protect, authorize } = require('../middleware/auth');
 
+function parseLegacyQuantity(quantity) {
+  if (typeof quantity !== 'string') return null;
+  const trimmed = quantity.trim();
+  // e.g. "5kg", "5 kg", "2.5 plates", "10 servings"
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(.+)$/);
+  if (!match) return null;
+  const totalQuantity = Number(match[1]);
+  const unit = (match[2] || '').trim();
+  if (!Number.isFinite(totalQuantity) || totalQuantity <= 0) return null;
+  if (!unit) return null;
+  return { totalQuantity, unit };
+}
+
 // POST /food/add
 router.post('/add', protect, authorize('provider'), async (req, res) => {
   try {
-    const { foodName, quantity, expiryTime, location, lat, lng, description } = req.body;
+    const { foodName, quantity, totalQuantity: rawTotalQuantity, unit: rawUnit, expiryTime, location, lat, lng, description } = req.body;
+
+    let totalQuantity;
+    let unit;
+    if (rawTotalQuantity !== undefined || rawUnit !== undefined) {
+      totalQuantity = Number(rawTotalQuantity);
+      unit = typeof rawUnit === 'string' ? rawUnit.trim() : '';
+      if (!Number.isFinite(totalQuantity) || totalQuantity <= 0) {
+        return res.status(400).json({ message: 'totalQuantity must be a positive number' });
+      }
+      if (!unit) return res.status(400).json({ message: 'unit is required' });
+    } else {
+      const parsed = parseLegacyQuantity(quantity);
+      if (!parsed) {
+        return res.status(400).json({ message: 'Provide totalQuantity + unit (or quantity like "5 kg")' });
+      }
+      totalQuantity = parsed.totalQuantity;
+      unit = parsed.unit;
+    }
+
     const food = await Food.create({
-      foodName, quantity, expiryTime, location, lat, lng, description,
+      foodName,
+      quantity: quantity || `${totalQuantity} ${unit}`.trim(),
+      totalQuantity,
+      remainingQuantity: totalQuantity,
+      unit,
+      expiryTime,
+      location,
+      lat,
+      lng,
+      description,
       providerId: req.user._id,
     });
     await food.populate('providerId', 'name email');
@@ -23,7 +64,7 @@ router.post('/add', protect, authorize('provider'), async (req, res) => {
 // GET /food/all — available food for seekers
 router.get('/all', protect, async (req, res) => {
   try {
-    const foods = await Food.find({ status: 'available' })
+    const foods = await Food.find({ status: 'available', remainingQuantity: { $gt: 0 } })
       .populate('providerId', 'name email')
       .sort('-createdAt');
     res.json(foods);

@@ -8,7 +8,8 @@ export default function AddFood() {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     foodName: '',
-    quantity: '',
+    totalQuantity: '',
+    unit: 'kg',
     expiryTime: '',
     location: '',
     lat: '',
@@ -39,6 +40,7 @@ export default function AddFood() {
     try {
       await api.post('/food/add', {
         ...form,
+        totalQuantity: form.totalQuantity ? Number(form.totalQuantity) : form.totalQuantity,
         lat: form.lat ? parseFloat(form.lat) : undefined,
         lng: form.lng ? parseFloat(form.lng) : undefined,
       });
@@ -67,7 +69,27 @@ export default function AddFood() {
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">Quantity *</label>
-              <input name="quantity" value={form.quantity} onChange={handleChange} className="input" placeholder="e.g. 5 kg, 10 servings..." required />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  name="totalQuantity"
+                  value={form.totalQuantity}
+                  onChange={handleChange}
+                  className="input"
+                  placeholder="e.g. 5"
+                  required
+                />
+                <select name="unit" value={form.unit} onChange={handleChange} className="input max-w-[140px]" required>
+                  <option value="kg">kg</option>
+                  <option value="g">g</option>
+                  <option value="liters">liters</option>
+                  <option value="plates">plates</option>
+                  <option value="servings">servings</option>
+                  <option value="packs">packs</option>
+                </select>
+              </div>
             </div>
           </div>
 

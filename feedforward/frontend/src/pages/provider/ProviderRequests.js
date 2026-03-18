@@ -3,6 +3,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { getSocket } from '../../services/socket';
 
 export default function ProviderRequests() {
   const [requests, setRequests] = useState([]);
@@ -23,6 +24,17 @@ export default function ProviderRequests() {
 
   useEffect(() => { fetchRequests(); }, []);
 
+  useEffect(() => {
+    const socket = getSocket();
+    const onFoodUpdated = (food) => {
+      setRequests((prev) =>
+        prev.map((r) => (r.foodId && r.foodId._id === food._id ? { ...r, foodId: food } : r))
+      );
+    };
+    socket.on('foodUpdated', onFoodUpdated);
+    return () => socket.off('foodUpdated', onFoodUpdated);
+  }, []);
+
   const handleUpdate = async (id, status) => {
     setUpdating(id);
     try {
@@ -30,8 +42,8 @@ export default function ProviderRequests() {
       setRequests((prev) => prev.map((r) => (r._id === id ? data : r)));
       const messages = { accepted: 'Request accepted! 🤝', rejected: 'Request rejected', completed: 'Marked as delivered! 🎉' };
       toast.success(messages[status]);
-    } catch {
-      toast.error('Failed to update request');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update request');
     } finally {
       setUpdating(null);
     }
@@ -87,7 +99,12 @@ export default function ProviderRequests() {
                   <div className="mt-2 space-y-1 text-sm text-stone-500">
                     <p>👤 Requested by: <span className="font-medium text-stone-700">{req.seekerId?.name}</span> ({req.seekerId?.email})</p>
                     <p>📍 Pickup: {req.foodId?.location}</p>
-                    <p>📦 Quantity: {req.foodId?.quantity}</p>
+                    <p>📦 Requested: {req.requestedQuantity} {req.foodId?.unit}</p>
+                    {req.foodId && (
+                      <p className="text-xs text-stone-400">
+                        Remaining: {req.foodId.remainingQuantity} {req.foodId.unit} / {req.foodId.totalQuantity} {req.foodId.unit}
+                      </p>
+                    )}
                     {req.message && <p>💬 Message: {req.message}</p>}
                     <p className="text-xs text-stone-400">
                       Requested on {new Date(req.createdAt).toLocaleString()}

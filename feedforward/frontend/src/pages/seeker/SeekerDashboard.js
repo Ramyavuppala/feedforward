@@ -85,7 +85,7 @@ export default function SeekerDashboard() {
                   <div>
                     <p className="font-medium text-stone-800 text-sm">{food.foodName}</p>
                     <p className="text-xs text-stone-400 mt-0.5">
-                      {food.quantity} · {food.location}
+                      {food.remainingQuantity} {food.unit} left · {food.location}
                     </p>
                     <p className="text-xs text-stone-400">
                       By {food.providerId?.name} · Expires {new Date(food.expiryTime).toLocaleDateString()}

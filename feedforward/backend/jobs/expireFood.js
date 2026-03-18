@@ -5,7 +5,7 @@ const autoExpireFood = async (io) => {
   try {
     const expiredFoods = await Food.find({
       expiryTime: { $lt: new Date() },
-      status: { $in: ['available', 'requested'] },
+      status: { $in: ['available'] },
     });
 
     for (const food of expiredFoods) {

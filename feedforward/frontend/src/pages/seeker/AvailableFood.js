@@ -3,16 +3,27 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { getSocket } from '../../services/socket';
 
 function RequestModal({ food, onClose, onSuccess }) {
   const [message, setMessage] = useState('');
+  const [requestedQuantity, setRequestedQuantity] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (food?.remainingQuantity != null) setRequestedQuantity(String(Math.min(1, food.remainingQuantity)));
+  }, [food]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const qty = Number(requestedQuantity);
+    if (!Number.isFinite(qty) || qty <= 0) return toast.error('Enter a valid quantity');
+    if (food?.remainingQuantity != null && qty > food.remainingQuantity) {
+      return toast.error(`Only ${food.remainingQuantity} ${food.unit} left`);
+    }
     setLoading(true);
     try {
-      await api.post('/request', { foodId: food._id, message });
+      await api.post('/request', { foodId: food._id, message, requestedQuantity: qty });
       toast.success('Request sent! The provider will be notified. 🎉');
       onSuccess();
       onClose();
@@ -36,7 +47,7 @@ function RequestModal({ food, onClose, onSuccess }) {
           <div className="p-4 bg-forest-50 rounded-xl border border-forest-100">
             <p className="font-semibold text-forest-800">{food.foodName}</p>
             <div className="mt-1.5 space-y-1 text-sm text-forest-700">
-              <p>📦 Qty: {food.quantity}</p>
+              <p>📦 Left: {food.remainingQuantity} {food.unit}</p>
               <p>📍 {food.location}</p>
               <p>⏰ Expires: {new Date(food.expiryTime).toLocaleString()}</p>
               <p>👤 Provider: {food.providerId?.name}</p>
@@ -44,6 +55,29 @@ function RequestModal({ food, onClose, onSuccess }) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                Quantity to request *
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={requestedQuantity}
+                  onChange={(e) => setRequestedQuantity(e.target.value)}
+                  className="input"
+                  placeholder="e.g. 2"
+                  required
+                />
+                <div className="input flex items-center justify-center max-w-[120px] bg-stone-50 text-stone-600">
+                  {food.unit}
+                </div>
+              </div>
+              <p className="text-xs text-stone-400 mt-1">
+                {food.remainingQuantity} {food.unit} available
+              </p>
+            </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
                 Message to Provider (optional)
@@ -94,6 +128,23 @@ export default function AvailableFood() {
   };
 
   useEffect(() => { fetchFoods(); }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const onFoodAdded = (food) => setFoods((prev) => [food, ...prev]);
+    const onFoodUpdated = (food) => setFoods((prev) => prev.map((f) => (f._id === food._id ? food : f)));
+    const onFoodDeleted = ({ _id }) => setFoods((prev) => prev.filter((f) => f._id !== _id));
+
+    socket.on('foodAdded', onFoodAdded);
+    socket.on('foodUpdated', onFoodUpdated);
+    socket.on('foodDeleted', onFoodDeleted);
+
+    return () => {
+      socket.off('foodAdded', onFoodAdded);
+      socket.off('foodUpdated', onFoodUpdated);
+      socket.off('foodDeleted', onFoodDeleted);
+    };
+  }, []);
 
   const filtered = foods.filter(
     (f) =>
@@ -162,7 +213,24 @@ export default function AvailableFood() {
 
                 <div className="mt-3 space-y-1.5 text-xs text-stone-500 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span>📦</span> {food.quantity}
+                    <span>📦</span> {food.remainingQuantity} {food.unit} left
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span>⚖️</span> {food.remainingQuantity} {food.unit} left · {food.totalQuantity} {food.unit} total
+                  </div>
+                  <div className="w-full bg-stone-100 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-forest-500 h-2"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.max(
+                            0,
+                            food.totalQuantity ? ((food.totalQuantity - food.remainingQuantity) / food.totalQuantity) * 100 : 0
+                          )
+                        )}%`,
+                      }}
+                    />
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span>📍</span> {food.location}

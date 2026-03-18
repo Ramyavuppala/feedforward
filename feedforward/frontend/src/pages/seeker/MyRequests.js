@@ -3,6 +3,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { getSocket } from '../../services/socket';
 
 const statusSteps = ['pending', 'accepted', 'completed'];
 
@@ -49,6 +50,17 @@ export default function MyRequests() {
       .then(({ data }) => setRequests(data))
       .catch(() => toast.error('Failed to load requests'))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const onFoodUpdated = (food) => {
+      setRequests((prev) =>
+        prev.map((r) => (r.foodId && r.foodId._id === food._id ? { ...r, foodId: food } : r))
+      );
+    };
+    socket.on('foodUpdated', onFoodUpdated);
+    return () => socket.off('foodUpdated', onFoodUpdated);
   }, []);
 
   const filtered = filter === 'all' ? requests : requests.filter((r) => r.status === filter);
@@ -122,7 +134,12 @@ export default function MyRequests() {
 
                   <div className="mt-2 space-y-1 text-sm text-stone-500">
                     <p>📍 {req.foodId?.location || '—'}</p>
-                    <p>📦 {req.foodId?.quantity || '—'}</p>
+                    <p>📦 Requested: {req.requestedQuantity} {req.foodId?.unit || ''}</p>
+                    {req.foodId && (
+                      <p className="text-xs text-stone-400">
+                        Remaining: {req.foodId.remainingQuantity} {req.foodId.unit} / {req.foodId.totalQuantity} {req.foodId.unit}
+                      </p>
+                    )}
                     <p>👤 Provider: <span className="font-medium text-stone-700">{req.providerId?.name}</span></p>
                     {req.message && <p>💬 Your message: {req.message}</p>}
                     <p className="text-xs text-stone-400">

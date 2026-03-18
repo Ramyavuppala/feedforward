@@ -4,6 +4,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { getSocket } from '../../services/socket';
 
 export default function ManageFoods() {
   const [foods, setFoods] = useState([]);
@@ -22,6 +23,23 @@ export default function ManageFoods() {
   };
 
   useEffect(() => { fetchFoods(); }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const onFoodUpdated = (food) => setFoods((prev) => prev.map((f) => (f._id === food._id ? food : f)));
+    const onFoodDeleted = ({ _id }) => setFoods((prev) => prev.filter((f) => f._id !== _id));
+    const onFoodAdded = (food) => setFoods((prev) => [food, ...prev]);
+
+    socket.on('foodUpdated', onFoodUpdated);
+    socket.on('foodDeleted', onFoodDeleted);
+    socket.on('foodAdded', onFoodAdded);
+
+    return () => {
+      socket.off('foodUpdated', onFoodUpdated);
+      socket.off('foodDeleted', onFoodDeleted);
+      socket.off('foodAdded', onFoodAdded);
+    };
+  }, []);
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete "${name}"?`)) return;
@@ -62,7 +80,7 @@ export default function ManageFoods() {
 
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
-        {['all', 'available', 'requested', 'accepted', 'delivered', 'expired'].map((s) => (
+        {['all', 'available', 'completed', 'delivered', 'expired', 'requested', 'accepted'].map((s) => (
           <button
             key={s}
             onClick={() => setFilter(s)}
@@ -90,7 +108,9 @@ export default function ManageFoods() {
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-stone-800 truncate">{food.foodName}</h3>
-                  <p className="text-xs text-stone-400 mt-0.5">{food.quantity}</p>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    {food.remainingQuantity} {food.unit} left · {food.totalQuantity} {food.unit} total
+                  </p>
                 </div>
                 <StatusBadge status={food.status} />
               </div>
