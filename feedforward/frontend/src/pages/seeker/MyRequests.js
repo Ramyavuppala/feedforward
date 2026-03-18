@@ -59,8 +59,21 @@ export default function MyRequests() {
         prev.map((r) => (r.foodId && r.foodId._id === food._id ? { ...r, foodId: food } : r))
       );
     };
+    const onQuantityUpdated = ({ foodId, remainingQuantity, totalQuantity, unit, status }) => {
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.foodId && r.foodId._id === foodId
+            ? { ...r, foodId: { ...r.foodId, remainingQuantity, totalQuantity, unit, status: status || r.foodId.status } }
+            : r
+        )
+      );
+    };
     socket.on('foodUpdated', onFoodUpdated);
-    return () => socket.off('foodUpdated', onFoodUpdated);
+    socket.on('quantityUpdated', onQuantityUpdated);
+    return () => {
+      socket.off('foodUpdated', onFoodUpdated);
+      socket.off('quantityUpdated', onQuantityUpdated);
+    };
   }, []);
 
   const filtered = filter === 'all' ? requests : requests.filter((r) => r.status === filter);

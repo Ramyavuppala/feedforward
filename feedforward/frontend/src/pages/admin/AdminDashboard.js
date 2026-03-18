@@ -43,7 +43,7 @@ export default function AdminDashboard() {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Users" value={stats.totalUsers} icon="👥" color="purple" />
-        <StatCard label="Food Listed" value={stats.totalFood} icon="🍱" color="forest" />
+        <StatCard label="Food Listings" value={stats.totalFoodListings} icon="🍱" color="forest" />
         <StatCard label="Active Listings" value={stats.activeFood} icon="✅" color="blue" />
         <StatCard label="Deliveries Done" value={stats.completedRequests} icon="🎉" color="earth" />
       </div>
@@ -52,7 +52,14 @@ export default function AdminDashboard() {
         <StatCard label="Total Requests" value={stats.totalRequests} icon="📬" color="amber" />
         <StatCard label="Expired Food" value={stats.expiredFood} icon="⏰" color="red" />
         <StatCard label="Success Rate" value={`${stats.totalRequests ? Math.round((stats.completedRequests / stats.totalRequests) * 100) : 0}%`} icon="📈" color="forest" />
-        <StatCard label="Waste Diverted" value={`${stats.completedRequests} meals`} icon="🌍" color="purple" />
+        <StatCard label="Distributed Qty" value={stats.distributedQuantity || 0} icon="📦" color="purple" />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total Providers" value={stats.totalProviders} icon="🏪" color="blue" />
+        <StatCard label="Total Seekers" value={stats.totalSeekers} icon="🙋" color="earth" />
+        <StatCard label="Remaining Qty" value={stats.remainingQuantity || 0} icon="⚖️" color="amber" />
+        <StatCard label="Completed Food" value={stats.completedFood || 0} icon="✔️" color="forest" />
       </div>
 
       {/* Charts */}

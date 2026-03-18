@@ -134,15 +134,24 @@ export default function AvailableFood() {
     const onFoodAdded = (food) => setFoods((prev) => [food, ...prev]);
     const onFoodUpdated = (food) => setFoods((prev) => prev.map((f) => (f._id === food._id ? food : f)));
     const onFoodDeleted = ({ _id }) => setFoods((prev) => prev.filter((f) => f._id !== _id));
+    const onQuantityUpdated = ({ foodId, remainingQuantity, totalQuantity, unit, status }) => {
+      setFoods((prev) =>
+        prev.map((f) =>
+          f._id === foodId ? { ...f, remainingQuantity, totalQuantity, unit, status: status || f.status } : f
+        )
+      );
+    };
 
     socket.on('foodAdded', onFoodAdded);
     socket.on('foodUpdated', onFoodUpdated);
     socket.on('foodDeleted', onFoodDeleted);
+    socket.on('quantityUpdated', onQuantityUpdated);
 
     return () => {
       socket.off('foodAdded', onFoodAdded);
       socket.off('foodUpdated', onFoodUpdated);
       socket.off('foodDeleted', onFoodDeleted);
+      socket.off('quantityUpdated', onQuantityUpdated);
     };
   }, []);
 

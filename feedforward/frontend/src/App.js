@@ -14,6 +14,9 @@ import DashboardLayout from './components/DashboardLayout';
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
+import ProvidersAnalytics from './pages/admin/ProvidersAnalytics';
+import SeekersAnalytics from './pages/admin/SeekersAnalytics';
+import FoodAnalytics from './pages/admin/FoodAnalytics';
 
 // Provider pages
 import ProviderDashboard from './pages/provider/ProviderDashboard';
@@ -63,6 +66,9 @@ export default function App() {
             <Route path="/admin" element={<ProtectedRoute roles={['admin']}><DashboardLayout /></ProtectedRoute>}>
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="providers-analytics" element={<ProvidersAnalytics />} />
+              <Route path="seekers-analytics" element={<SeekersAnalytics />} />
+              <Route path="food-analytics" element={<FoodAnalytics />} />
             </Route>
 
             {/* Provider */}

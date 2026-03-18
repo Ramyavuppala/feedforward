@@ -8,6 +8,9 @@ const navItems = {
   admin: [
     { to: '/admin', label: 'Dashboard', icon: '📊', end: true },
     { to: '/admin/users', label: 'Users', icon: '👥' },
+    { to: '/admin/providers-analytics', label: 'Providers', icon: '🏪' },
+    { to: '/admin/seekers-analytics', label: 'Seekers', icon: '🙋' },
+    { to: '/admin/food-analytics', label: 'Food Analytics', icon: '🍱' },
   ],
   provider: [
     { to: '/provider', label: 'Dashboard', icon: '🏠', end: true },

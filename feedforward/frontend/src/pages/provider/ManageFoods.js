@@ -29,15 +29,24 @@ export default function ManageFoods() {
     const onFoodUpdated = (food) => setFoods((prev) => prev.map((f) => (f._id === food._id ? food : f)));
     const onFoodDeleted = ({ _id }) => setFoods((prev) => prev.filter((f) => f._id !== _id));
     const onFoodAdded = (food) => setFoods((prev) => [food, ...prev]);
+    const onQuantityUpdated = ({ foodId, remainingQuantity, totalQuantity, unit, status }) => {
+      setFoods((prev) =>
+        prev.map((f) =>
+          f._id === foodId ? { ...f, remainingQuantity, totalQuantity, unit, status: status || f.status } : f
+        )
+      );
+    };
 
     socket.on('foodUpdated', onFoodUpdated);
     socket.on('foodDeleted', onFoodDeleted);
     socket.on('foodAdded', onFoodAdded);
+    socket.on('quantityUpdated', onQuantityUpdated);
 
     return () => {
       socket.off('foodUpdated', onFoodUpdated);
       socket.off('foodDeleted', onFoodDeleted);
       socket.off('foodAdded', onFoodAdded);
+      socket.off('quantityUpdated', onQuantityUpdated);
     };
   }, []);
 
