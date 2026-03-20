@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import ExpiryCountdown from './ExpiryCountdown';
 
 export default function RequestModal({ food, onClose, onSuccess }) {
   const [message, setMessage] = useState('');
@@ -55,7 +56,9 @@ export default function RequestModal({ food, onClose, onSuccess }) {
                 📦 Left: {food.remainingQuantity} {food.unit}
               </p>
               <p>📍 {food.location}</p>
-              <p>⏰ Expires: {new Date(food.expiryTime).toLocaleString()}</p>
+              <p>
+                <ExpiryCountdown expiryTime={food.expiryTime} />
+              </p>
               <p>👤 Provider: {food.providerId?.name}</p>
             </div>
           </div>

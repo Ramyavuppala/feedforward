@@ -23,6 +23,13 @@ export default function AdminDashboard() {
 
   if (loading) return <LoadingSpinner text="Loading analytics..." />;
 
+  const getTrustTier = (trustScore) => {
+    const ts = Number.isFinite(trustScore) ? trustScore : 0;
+    if (ts >= 100) return { label: 'Top Contributor', color: 'bg-purple-100 text-purple-700', icon: '🏆' };
+    if (ts >= 50) return { label: 'Trusted', color: 'bg-blue-100 text-blue-700', icon: '⭐' };
+    return { label: 'New User', color: 'bg-forest-100 text-forest-700', icon: '🐣' };
+  };
+
   const monthlyData = MONTH_NAMES.map((m, i) => {
     const foods = stats.monthlyFoods.find((d) => d._id.month === i + 1)?.count || 0;
     const reqs = stats.monthlyRequests.find((d) => d._id.month === i + 1)?.count || 0;
@@ -51,7 +58,7 @@ export default function AdminDashboard() {
 
       {/* Impact Dashboard (derived from /admin/stats) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <CountUpStatCard label="Meals Saved 🍽️" value={stats.mealsSaved || 0} icon="🍽️" color="forest" />
+        {/* <CountUpStatCard label="Meals Saved 🍽️" value={stats.mealsSaved || 0} icon="🍽️" color="forest" /> */}
         <CountUpStatCard label="People Served 👥" value={stats.peopleServed || 0} icon="👥" color="blue" />
         <CountUpStatCard label="CO2 Saved 🌍" value={stats.co2Saved || 0} icon="🌍" color="earth" />
       </div>
@@ -133,6 +140,44 @@ export default function AdminDashboard() {
           </LineChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Top Contributors */}
+      {Array.isArray(stats.topContributors) && stats.topContributors.length > 0 ? (
+        <div className="card">
+          <h3 className="font-semibold text-stone-700 mb-4">Top Contributors</h3>
+          <div className="space-y-3">
+            {stats.topContributors.map((u, idx) => {
+              const tier = getTrustTier(u.trustScore);
+              return (
+                <div
+                  key={u._id || u.email}
+                  className={`flex items-start justify-between gap-4 p-3 rounded-xl border ${
+                    idx === 0 ? 'border-purple-200 bg-purple-50/40' : 'border-stone-100 bg-white'
+                  }`}
+                >
+                  <div>
+                    <div className="font-medium text-stone-800">{u.name}</div>
+                    <div className="text-xs text-stone-500 mt-0.5">{u.role}</div>
+                    <div className={`inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full mt-2 ${tier.color}`}>
+                      <span>{tier.icon}</span>
+                      <span>{tier.label}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-stone-800">{u.trustScore} ⭐</div>
+                    <div className="text-xs text-stone-500">Trust score</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="card">
+          <h3 className="font-semibold text-stone-700 mb-4">Top Contributors</h3>
+          <p className="text-sm text-stone-400">No trust data yet.</p>
+        </div>
+      )}
     </div>
   );
 }

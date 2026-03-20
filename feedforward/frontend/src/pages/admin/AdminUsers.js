@@ -7,6 +7,7 @@ const roleBadge = {
   admin:    'bg-purple-100 text-purple-700',
   provider: 'bg-forest-100 text-forest-700',
   seeker:   'bg-earth-100 text-earth-700',
+  volunteer:'bg-blue-100 text-blue-700',
 };
 
 export default function AdminUsers() {
@@ -67,7 +68,7 @@ export default function AdminUsers() {
             placeholder="Search by name or email..."
           />
           <div className="flex gap-2">
-            {['all', 'admin', 'provider', 'seeker'].map((r) => (
+            {['all', 'admin', 'provider', 'seeker', 'volunteer'].map((r) => (
               <button
                 key={r}
                 onClick={() => setFilter(r)}

@@ -4,41 +4,7 @@ import toast from 'react-hot-toast';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { getSocket } from '../../services/socket';
-
-const statusSteps = ['pending', 'accepted', 'completed'];
-
-function RequestTracker({ status }) {
-  const current = statusSteps.indexOf(status);
-  if (status === 'rejected') {
-    return (
-      <div className="flex items-center gap-2 mt-3">
-        <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-xs">❌</div>
-        <span className="text-xs text-red-500 font-medium">Request was declined</span>
-      </div>
-    );
-  }
-  return (
-    <div className="flex items-center gap-1 mt-3">
-      {statusSteps.map((step, i) => (
-        <React.Fragment key={step}>
-          <div className="flex flex-col items-center gap-1">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-              i <= current ? 'bg-forest-500 text-white' : 'bg-stone-200 text-stone-400'
-            }`}>
-              {i < current ? '✓' : i + 1}
-            </div>
-            <span className={`text-xs capitalize ${i <= current ? 'text-forest-600 font-medium' : 'text-stone-400'}`}>
-              {step}
-            </span>
-          </div>
-          {i < statusSteps.length - 1 && (
-            <div className={`flex-1 h-0.5 mb-4 ${i < current ? 'bg-forest-400' : 'bg-stone-200'}`} />
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
+import StatusTracker from '../../components/StatusTracker';
 
 export default function MyRequests() {
   const [requests, setRequests] = useState([]);
@@ -68,11 +34,34 @@ export default function MyRequests() {
         )
       );
     };
+    const onTaskUpdated = (task) => {
+      setRequests((prev) =>
+        prev.map((r) => {
+          if (!r.foodId || !r.providerId) return r;
+          const sameFood = String(r.foodId._id) === String(task.foodId);
+          const sameProvider = String(r.providerId._id) === String(task.providerId);
+          if (!sameFood || !sameProvider) return r;
+          return {
+            ...r,
+            volunteerTask: { status: task.status },
+          };
+        })
+      );
+    };
+
+    const onDeliveryCompleted = ({ task }) => {
+      onTaskUpdated(task);
+    };
+
     socket.on('foodUpdated', onFoodUpdated);
     socket.on('quantityUpdated', onQuantityUpdated);
+    socket.on('taskUpdated', onTaskUpdated);
+    socket.on('deliveryCompleted', onDeliveryCompleted);
     return () => {
       socket.off('foodUpdated', onFoodUpdated);
       socket.off('quantityUpdated', onQuantityUpdated);
+      socket.off('taskUpdated', onTaskUpdated);
+      socket.off('deliveryCompleted', onDeliveryCompleted);
     };
   }, []);
 
@@ -160,9 +149,19 @@ export default function MyRequests() {
                     </p>
                   </div>
 
-                  {/* Tracker */}
+                  {/* Live Status Tracker: Pending -> Accepted -> Picked -> Delivered */}
                   <div className="mt-3 max-w-xs">
-                    <RequestTracker status={req.status} />
+                    {req.status === 'rejected' ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-xs">❌</div>
+                        <span className="text-xs text-red-500 font-medium">Request was declined</span>
+                      </div>
+                    ) : (
+                      <StatusTracker
+                        requestStatus={req.status}
+                        volunteerStatus={req.volunteerTask?.status}
+                      />
+                    )}
                   </div>
                 </div>
 

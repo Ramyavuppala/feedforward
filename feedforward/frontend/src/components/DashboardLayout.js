@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import NotificationPanel from './NotificationPanel';
+import api from '../services/api';
 
 const navItems = {
   admin: [
@@ -24,6 +25,9 @@ const navItems = {
     { to: '/seeker/my-requests', label: 'My Requests', icon: '📋' },
     { to: '/seeker/map', label: 'Food Map', icon: '🗺️' },
   ],
+  volunteer: [
+    { to: '/volunteer', label: 'Volunteer Tasks', icon: '🚚', end: true },
+  ],
 };
 
 export default function DashboardLayout() {
@@ -44,13 +48,54 @@ export default function DashboardLayout() {
     admin: 'bg-purple-600',
     provider: 'bg-forest-700',
     seeker: 'bg-earth-600',
+    volunteer: 'bg-blue-700',
   };
 
   const roleBadgeColors = {
     admin: 'bg-purple-100 text-purple-700',
     provider: 'bg-forest-100 text-forest-700',
     seeker: 'bg-earth-100 text-earth-700',
+    volunteer: 'bg-blue-100 text-blue-700',
   };
+
+  const [trustScore, setTrustScore] = useState(0);
+  const [trustLoading, setTrustLoading] = useState(false);
+  const [trustBump, setTrustBump] = useState(false);
+  const prevTrustRef = useRef(null);
+
+  useEffect(() => {
+    if (!user) return;
+    prevTrustRef.current = prevTrustRef.current ?? 0;
+    setTrustLoading(true);
+    api
+      .get('/user/trust-score')
+      .then(({ data }) => {
+        const next = Number.isFinite(data?.trustScore) ? data.trustScore : 0;
+        setTrustScore(next);
+      })
+      .catch(() => {
+        setTrustScore(0);
+      })
+      .finally(() => setTrustLoading(false));
+  }, [user?._id]);
+
+  useEffect(() => {
+    if (!trustLoading && prevTrustRef.current == null) prevTrustRef.current = trustScore;
+    if (!trustLoading && prevTrustRef.current != null && trustScore > prevTrustRef.current) {
+      setTrustBump(true);
+      const t = setTimeout(() => setTrustBump(false), 650);
+      prevTrustRef.current = trustScore;
+      return () => clearTimeout(t);
+    }
+    prevTrustRef.current = trustScore;
+  }, [trustScore, trustLoading]);
+
+  const trustTier = useMemo(() => {
+    const ts = Number.isFinite(trustScore) ? trustScore : 0;
+    if (ts >= 100) return { label: 'Top Contributor', color: 'bg-purple-100 text-purple-700', icon: '🏆' };
+    if (ts >= 50) return { label: 'Trusted', color: 'bg-blue-100 text-blue-700', icon: '⭐' };
+    return { label: 'New User', color: 'bg-forest-100 text-forest-700', icon: '🐣' };
+  }, [trustScore]);
 
   return (
     <div className="flex h-screen bg-stone-50 overflow-hidden">
@@ -88,6 +133,23 @@ export default function DashboardLayout() {
               <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${roleBadgeColors[user?.role]} font-medium`}>
                 {user?.role}
               </span>
+              <div className="mt-2">
+                <p
+                  className={`text-xs text-white/80 flex items-center gap-2 ${
+                    trustBump ? 'transform scale-[1.06] transition-transform' : ''
+                  }`}
+                >
+                  {trustLoading ? 'Calculating trust...' : `Trust Score: ${trustScore} ⭐`}
+                </p>
+                <span
+                  className={`mt-1 inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${trustTier.color} ${
+                    trustLoading ? 'opacity-70' : ''
+                  }`}
+                >
+                  <span>{trustTier.icon}</span>
+                  <span>{trustTier.label}</span>
+                </span>
+              </div>
             </div>
           </div>
         </div>

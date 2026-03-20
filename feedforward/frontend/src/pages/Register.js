@@ -31,6 +31,7 @@ export default function Register() {
     seeker: 'Find and request available food donations',
     provider: 'Share surplus food with those in need',
     admin: 'Manage the platform and users',
+    volunteer: 'Transport food from providers to seekers',
   };
 
   return (
@@ -63,7 +64,7 @@ export default function Register() {
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-2">I want to join as...</label>
               <div className="grid grid-cols-3 gap-2">
-                {['seeker', 'provider', 'admin'].map((r) => (
+                {['seeker', 'provider', 'volunteer', 'admin'].map((r) => (
                   <button
                     type="button"
                     key={r}

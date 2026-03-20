@@ -258,6 +258,8 @@ async function getRecommendedFood(req, res) {
       lat: food.lat,
       lng: food.lng,
       distanceKm: food.distanceKm,
+      // Alias to match spec: `distance` in km
+      distance: food.distanceKm,
       priorityScore: food.priorityScore,
     }));
 

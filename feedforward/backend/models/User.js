@@ -6,11 +6,14 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ['admin', 'provider', 'seeker'], default: 'seeker' },
+    role: { type: String, enum: ['admin', 'provider', 'seeker', 'volunteer'], default: 'seeker' },
     // Last known seeker location (used for smart matching/notifications).
     // Optional so existing users and records remain valid.
     lastLat: { type: Number },
     lastLng: { type: Number },
+    // Trust score drives reputation badges across the app.
+    // Always keep non-negative values.
+    trustScore: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true }
 );

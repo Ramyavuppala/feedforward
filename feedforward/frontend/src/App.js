@@ -30,6 +30,9 @@ import AvailableFood from './pages/seeker/AvailableFood';
 import MyRequests from './pages/seeker/MyRequests';
 import FoodMap from './pages/seeker/FoodMap';
 
+// Volunteer pages
+import VolunteerDashboard from './pages/volunteer/VolunteerDashboard';
+
 const ProtectedRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center h-screen"><div className="w-8 h-8 border-4 border-forest-500 border-t-transparent rounded-full animate-spin" /></div>;
@@ -85,6 +88,11 @@ export default function App() {
               <Route path="available" element={<AvailableFood />} />
               <Route path="my-requests" element={<MyRequests />} />
               <Route path="map" element={<FoodMap />} />
+            </Route>
+
+            {/* Volunteer */}
+            <Route path="/volunteer" element={<ProtectedRoute roles={['volunteer']}><DashboardLayout /></ProtectedRoute>}>
+              <Route index element={<VolunteerDashboard />} />
             </Route>
           </Routes>
         </NotificationProvider>

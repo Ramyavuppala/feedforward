@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const Request = require('../models/Request');
 const Food = require('../models/Food');
 const Notification = require('../models/Notification');
+const VolunteerTask = require('../models/VolunteerTask');
+const { applyTrustForRequestStatus } = require('../utils/trustScore');
 
 async function createRequest(req, res) {
   try {
@@ -53,8 +55,35 @@ async function getMyRequests(req, res) {
     const requests = await Request.find({ seekerId: req.user._id })
       .populate('foodId')
       .populate('providerId', 'name email')
-      .sort('-createdAt');
-    res.json(requests);
+      .sort('-createdAt')
+      .lean();
+
+    // Attach volunteer task status (if a delivery task exists for this request).
+    // A task is uniquely identified by (foodId, providerId, seekerId).
+    const seekerId = req.user._id;
+    const taskCandidates = await VolunteerTask.find({
+      seekerId,
+      foodId: { $in: requests.map((r) => r.foodId?._id || r.foodId) },
+    })
+      .select('foodId providerId seekerId status')
+      .lean();
+
+    const taskIndex = new Map();
+    for (const task of taskCandidates) {
+      const key = `${task.foodId}-${task.providerId}-${task.seekerId}`;
+      taskIndex.set(key, task);
+    }
+
+    const enriched = requests.map((r) => {
+      const key = `${r.foodId?._id || r.foodId}-${r.providerId?._id || r.providerId}-${r.seekerId}`;
+      const task = taskIndex.get(key);
+      return {
+        ...r,
+        volunteerTask: task ? { status: task.status } : null,
+      };
+    });
+
+    res.json(enriched);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -118,14 +147,38 @@ async function updateRequestStatus(req, res) {
       } finally {
         session.endSession();
       }
+
+      // When a provider accepts a request we automatically create a VolunteerTask.
+      // At this point no volunteer is assigned yet; the task simply represents
+      // "delivery required".
+      try {
+        const task = await VolunteerTask.create({
+          foodId: request.foodId,
+          providerId: request.providerId,
+          seekerId: request.seekerId,
+          volunteerId: null,
+          status: 'pending',
+        });
+        // Notify connected volunteers that a new delivery task is available.
+        req.io.emit('newTaskAvailable', task);
+      } catch (e) {
+        // Unique index ensures we don't create duplicate tasks for the same trip.
+        // If the task already exists we can safely ignore this race.
+      }
     } else if (status === 'rejected') {
       if (request.status !== 'pending') return res.status(400).json({ message: 'Only pending requests can be rejected' });
       request.status = 'rejected';
       await request.save();
+
+      // Trust score updates for provider & seeker (cancellation modeled as provider rejection).
+      await applyTrustForRequestStatus({ request, status: 'rejected' });
     } else if (status === 'completed') {
       if (request.status !== 'accepted') return res.status(400).json({ message: 'Only accepted requests can be completed' });
       request.status = 'completed';
       await request.save();
+
+      // Trust score updates for provider & seeker on successful completion.
+      await applyTrustForRequestStatus({ request, status: 'completed' });
     } else {
       return res.status(400).json({ message: 'Invalid status' });
     }

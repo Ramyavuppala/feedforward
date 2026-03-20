@@ -4,6 +4,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import ExpiryCountdown from '../../components/ExpiryCountdown';
 import { getSocket } from '../../services/socket';
 
 export default function ManageFoods() {
@@ -129,7 +130,8 @@ export default function ManageFoods() {
                   <span>📍</span> {food.location}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span>⏰</span> Expires: {new Date(food.expiryTime).toLocaleString()}
+                  <span>⏰</span>
+                  <ExpiryCountdown expiryTime={food.expiryTime} />
                 </div>
                 {food.description && (
                   <div className="flex items-start gap-1.5">

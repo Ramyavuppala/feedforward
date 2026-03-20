@@ -29,6 +29,7 @@ async function getStats(req, res) {
       expiredFood,
       completedFood,
       quantities,
+      topContributors,
     ] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ role: 'provider' }),
@@ -48,6 +49,11 @@ async function getStats(req, res) {
           },
         },
       ]),
+      User.find({ trustScore: { $gte: 0 } })
+        .sort('-trustScore')
+        .limit(5)
+        .select('name role email trustScore')
+        .lean(),
     ]);
 
     const distributedQuantity =
@@ -107,6 +113,7 @@ async function getStats(req, res) {
       mealsSaved: distributedQuantity, // total distributed quantity
       peopleServed: completedRequests, // completed requests count
       co2Saved: distributedQuantity * 2.5, // simple sustainability estimate
+      topContributors,
       monthlyFoods,
       monthlyRequests,
       roleDistribution,

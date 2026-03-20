@@ -5,6 +5,7 @@ import MapView from '../../components/MapView';
 import RequestModal from '../../components/RequestModal';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import useUserLocation from '../../hooks/useUserLocation';
+import ExpiryCountdown from '../../components/ExpiryCountdown';
 
 export default function FoodMap() {
   const [foods, setFoods] = useState([]);
@@ -175,7 +176,7 @@ export default function FoodMap() {
                     {food.remainingQuantity} {food.unit} left
                   </div>
                   <div className="text-xs text-stone-400">
-                    Expires {new Date(food.expiryTime).toLocaleString()}
+                    {food.expiryTime ? <ExpiryCountdown expiryTime={food.expiryTime} /> : null}
                   </div>
                 </div>
               ))
@@ -222,7 +223,9 @@ export default function FoodMap() {
                 <p>📦 {selected.remainingQuantity} {selected.unit}</p>
                 <p>📍 {selected.location}</p>
                 <p>👤 {selected.providerId?.name}</p>
-                <p>⏰ Expires: {new Date(selected.expiryTime).toLocaleDateString()}</p>
+                <p>
+                  <ExpiryCountdown expiryTime={selected.expiryTime} />
+                </p>
               </div>
               {selected.description && <p className="text-sm text-stone-500 mt-2">{selected.description}</p>}
             </div>

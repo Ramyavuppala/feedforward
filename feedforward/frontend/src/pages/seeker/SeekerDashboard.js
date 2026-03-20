@@ -6,6 +6,8 @@ import StatCard from '../../components/StatCard';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import useUserLocation from '../../hooks/useUserLocation';
+import ExpiryCountdown from '../../components/ExpiryCountdown';
+import StatusTracker from '../../components/StatusTracker';
 
 export default function SeekerDashboard() {
   const { user } = useAuth();
@@ -70,9 +72,9 @@ export default function SeekerDashboard() {
 
   const recommendedDisplay = useMemo(() => {
     if (!recommended?.length) return [];
-    if (sortByDistance) return recommended;
-    // Optional: client-side alternative sort (by remaining quantity) when toggle is off
-    return [...recommended].sort((a, b) => b.remainingQuantity - a.remainingQuantity);
+    // Backend already enforces strict distance-prioritized ranking.
+    // The toggle currently only reflects UI intent.
+    return recommended;
   }, [recommended, sortByDistance]);
 
   if (loading) return <LoadingSpinner />;
@@ -100,7 +102,7 @@ export default function SeekerDashboard() {
             <h3 className="font-semibold text-stone-800 flex items-center gap-2">
               Nearest &amp; Best Matches
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-forest-50 text-forest-700 border border-forest-100">
-                Recommended based on proximity and availability
+                Recommended based on proximity and availability (distance prioritized)
               </span>
             </h3>
             <p className="text-xs text-stone-400 mt-1">
@@ -198,31 +200,27 @@ export default function SeekerDashboard() {
                             : 'bg-blue-100 text-blue-800 border border-blue-200'
                         }`}
                       >
-                        {isBest ? 'Nearest · Best Match' : 'Close Match'}
+                        {isBest ? 'Nearest' : 'Close Match'}
                       </span>
+                      {isBest && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-forest-100 text-forest-700 border border-forest-200">
+                          Best Match
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] text-stone-500 mb-1">
                       {food.remainingQuantity} {food.unit} remaining
                       {food.location ? ` · ${food.location}` : ''}
                     </p>
                     <p className="text-[11px] text-stone-400">
-                      Expires{' '}
-                      {food.expiryTime
-                        ? new Date(food.expiryTime).toLocaleString()
-                        : '—'}
+                      {food.expiryTime ? <ExpiryCountdown expiryTime={food.expiryTime} /> : 'Expires in: —'}
                     </p>
                   </div>
 
                   <div className="flex flex-col items-end gap-1">
-                    <p className="text-xs font-semibold text-emerald-700">
+                    <p className={`text-sm font-bold ${isBest ? 'text-emerald-700' : 'text-stone-700'}`}>
                       {distanceLabel}
                     </p>
-                    {typeof food.priorityScore === 'number' && (
-                      <p className="text-[10px] text-stone-400">
-                        Match score:{' '}
-                        {food.priorityScore.toFixed(3)}
-                      </p>
-                    )}
                   </div>
                 </div>
               );
@@ -279,8 +277,11 @@ export default function SeekerDashboard() {
                       {food.remainingQuantity} {food.unit} left · {food.location}
                     </p>
                     <p className="text-xs text-stone-400">
-                      By {food.providerId?.name} · Expires {new Date(food.expiryTime).toLocaleDateString()}
+                      By {food.providerId?.name}
                     </p>
+                    <div className="mt-1">
+                      {food.expiryTime ? <ExpiryCountdown expiryTime={food.expiryTime} /> : null}
+                    </div>
                   </div>
                   <StatusBadge status={food.status} />
                 </div>
@@ -301,14 +302,24 @@ export default function SeekerDashboard() {
         ) : (
           <div className="divide-y divide-stone-50">
             {requests.slice(0, 5).map((req) => (
-              <div key={req._id} className="py-3 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-stone-800 text-sm">{req.foodId?.foodName || '—'}</p>
-                  <p className="text-xs text-stone-400 mt-0.5">
-                    From {req.providerId?.name} · {new Date(req.createdAt).toLocaleDateString()}
-                  </p>
+              <div key={req._id} className="py-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-stone-800 text-sm">{req.foodId?.foodName || '—'}</p>
+                    <p className="text-xs text-stone-400 mt-0.5">
+                      From {req.providerId?.name} · {new Date(req.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <StatusBadge status={req.status} />
                 </div>
-                <StatusBadge status={req.status} />
+                {req.status !== 'rejected' && (
+                  <div className="mt-1 max-w-xs">
+                    <StatusTracker
+                      requestStatus={req.status}
+                      volunteerStatus={req.volunteerTask?.status}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>

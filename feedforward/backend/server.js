@@ -10,6 +10,7 @@ const requestRoutes = require('./routes/request');
 const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notification');
 const userRoutes = require('./routes/user');
+const volunteerRoutes = require('./routes/volunteer');
 const { autoExpireFood } = require('./jobs/expireFood');
 const { connectDB } = require('./config/db');
 const { initSockets } = require('./sockets');
@@ -34,6 +35,7 @@ app.use('/api/food', foodRoutes);
 app.use('/api/request', requestRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notification', notificationRoutes);
+app.use('/api/volunteer', volunteerRoutes);
 app.use('/api/user', userRoutes);
 
 app.get('/', (req, res) => res.json({ message: 'FeedForward API running' }));

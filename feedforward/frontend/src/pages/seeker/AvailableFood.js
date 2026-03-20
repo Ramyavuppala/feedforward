@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { getSocket } from '../../services/socket';
+import ExpiryCountdown from '../../components/ExpiryCountdown';
 
 function RequestModal({ food, onClose, onSuccess }) {
   const [message, setMessage] = useState('');
@@ -49,7 +50,9 @@ function RequestModal({ food, onClose, onSuccess }) {
             <div className="mt-1.5 space-y-1 text-sm text-forest-700">
               <p>📦 Left: {food.remainingQuantity} {food.unit}</p>
               <p>📍 {food.location}</p>
-              <p>⏰ Expires: {new Date(food.expiryTime).toLocaleString()}</p>
+              <p>
+                <ExpiryCountdown expiryTime={food.expiryTime} />
+              </p>
               <p>👤 Provider: {food.providerId?.name}</p>
             </div>
           </div>
@@ -192,9 +195,6 @@ export default function AvailableFood() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((food) => {
-            const isExpiringSoon =
-              new Date(food.expiryTime) - new Date() < 2 * 60 * 60 * 1000;
-
             return (
               <div
                 key={food._id}
@@ -207,11 +207,6 @@ export default function AvailableFood() {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <StatusBadge status={food.status} />
-                    {isExpiringSoon && (
-                      <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">
-                        ⚡ Expiring Soon
-                      </span>
-                    )}
                   </div>
                 </div>
 
@@ -247,8 +242,8 @@ export default function AvailableFood() {
                   <div className="flex items-center gap-1.5">
                     <span>👤</span> {food.providerId?.name}
                   </div>
-                  <div className={`flex items-center gap-1.5 ${isExpiringSoon ? 'text-red-500 font-medium' : ''}`}>
-                    <span>⏰</span> {new Date(food.expiryTime).toLocaleString()}
+                  <div className="flex items-center justify-start">
+                    <ExpiryCountdown expiryTime={food.expiryTime} />
                   </div>
                 </div>
 

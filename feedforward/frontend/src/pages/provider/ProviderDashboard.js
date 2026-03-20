@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import StatCard from '../../components/StatCard';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import ExpiryCountdown from '../../components/ExpiryCountdown';
 
 export default function ProviderDashboard() {
   const { user } = useAuth();
@@ -89,8 +90,11 @@ export default function ProviderDashboard() {
                 <div>
                   <p className="font-medium text-stone-800 text-sm">{food.foodName}</p>
                   <p className="text-xs text-stone-400 mt-0.5">
-                    {food.quantity} · {food.location} · Expires {new Date(food.expiryTime).toLocaleDateString()}
+                    {food.quantity} · {food.location}
                   </p>
+                  <div className="mt-1">
+                    {food.expiryTime ? <ExpiryCountdown expiryTime={food.expiryTime} /> : null}
+                  </div>
                 </div>
                 <StatusBadge status={food.status} />
               </div>

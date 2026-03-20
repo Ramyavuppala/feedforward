@@ -10,6 +10,7 @@ export default function ProviderRequests() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [updating, setUpdating] = useState(null);
+  const [assignVolunteerId, setAssignVolunteerId] = useState('');
 
   const fetchRequests = async () => {
     try {
@@ -51,7 +52,13 @@ export default function ProviderRequests() {
   const handleUpdate = async (id, status) => {
     setUpdating(id);
     try {
-      const { data } = await api.put(`/request/${id}`, { status });
+      const body = { status };
+      // Optional volunteer assignment during acceptance.
+      if (status === 'accepted' && assignVolunteerId.trim()) {
+        body.volunteerId = assignVolunteerId.trim();
+      }
+
+      const { data } = await api.put(`/request/${id}`, body);
       setRequests((prev) => prev.map((r) => (r._id === id ? data : r)));
       const messages = { accepted: 'Request accepted! 🤝', rejected: 'Request rejected', completed: 'Marked as delivered! 🎉' };
       toast.success(messages[status]);
@@ -73,6 +80,24 @@ export default function ProviderRequests() {
         <p className="text-stone-500 text-sm mt-1">
           {requests.filter((r) => r.status === 'pending').length} pending · {requests.length} total
         </p>
+      </div>
+
+      {/* Optional volunteer assignment on accept */}
+      <div className="card py-3 px-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-stone-800">Volunteer ID (optional)</p>
+            <p className="text-xs text-stone-400 mt-0.5">
+              If provided, this volunteer will be assigned when you accept a pending request.
+            </p>
+          </div>
+          <input
+            value={assignVolunteerId}
+            onChange={(e) => setAssignVolunteerId(e.target.value)}
+            className="input flex-1 sm:max-w-xs"
+            placeholder="e.g. 660d... (User _id)"
+          />
+        </div>
       </div>
 
       <div className="flex gap-2 flex-wrap">
