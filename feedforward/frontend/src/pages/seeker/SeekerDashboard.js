@@ -1,16 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import StatCard from '../../components/StatCard';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import useUserLocation from '../../hooks/useUserLocation';
 
 export default function SeekerDashboard() {
   const { user } = useAuth();
   const [available, setAvailable] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [recommended, setRecommended] = useState([]);
+  const [recommendedLoading, setRecommendedLoading] = useState(true);
+  const [recommendedError, setRecommendedError] = useState(null);
+  const [sortByDistance, setSortByDistance] = useState(true);
+
+  const {
+    lat,
+    lng,
+    loading: locationLoading,
+    error: locationError,
+    permissionDenied,
+    requestLocation,
+  } = useUserLocation();
 
   useEffect(() => {
     Promise.all([
@@ -21,6 +35,45 @@ export default function SeekerDashboard() {
       setRequests(r.data);
     }).finally(() => setLoading(false));
   }, []);
+
+  // Fetch recommended foods once we know the user's location (or fallback)
+  useEffect(() => {
+    if (locationLoading) return;
+
+    // Guard against missing/invalid coordinates
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setRecommended([]);
+      setRecommendedLoading(false);
+      setRecommendedError('Unable to determine your location.');
+      return;
+    }
+
+    setRecommendedLoading(true);
+    setRecommendedError(null);
+
+    api
+      .get(`/food/recommended`, {
+        params: { lat, lng },
+      })
+      .then((res) => {
+        setRecommended(res.data || []);
+      })
+      .catch((err) => {
+        const msg = err?.response?.data?.message || 'Failed to load recommended food.';
+        setRecommendedError(msg);
+        setRecommended([]);
+      })
+      .finally(() => {
+        setRecommendedLoading(false);
+      });
+  }, [lat, lng, locationLoading]);
+
+  const recommendedDisplay = useMemo(() => {
+    if (!recommended?.length) return [];
+    if (sortByDistance) return recommended;
+    // Optional: client-side alternative sort (by remaining quantity) when toggle is off
+    return [...recommended].sort((a, b) => b.remainingQuantity - a.remainingQuantity);
+  }, [recommended, sortByDistance]);
 
   if (loading) return <LoadingSpinner />;
 
@@ -38,6 +91,144 @@ export default function SeekerDashboard() {
           Welcome, {user?.name?.split(' ')[0]} 🙏
         </h2>
         <p className="text-stone-500 text-sm mt-1">Find food available near you</p>
+      </div>
+
+      {/* Nearest & Best Matches */}
+      <div className="card border-forest-100 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+          <div>
+            <h3 className="font-semibold text-stone-800 flex items-center gap-2">
+              Nearest &amp; Best Matches
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-forest-50 text-forest-700 border border-forest-100">
+                Recommended based on proximity and availability
+              </span>
+            </h3>
+            <p className="text-xs text-stone-400 mt-1">
+              Distance is strictly prioritized. We show the closest, most available food first.
+            </p>
+            {locationError && (
+              <p className="text-xs text-amber-700 mt-1">
+                {permissionDenied
+                  ? 'Location permission denied. Using an approximate fallback location.'
+                  : locationError}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={requestLocation}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-forest-600 text-white shadow-sm hover:bg-forest-700 transition-colors"
+            >
+              <span>📍</span>
+              <span>Detect My Location</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSortByDistance((s) => !s)}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                sortByDistance
+                  ? 'bg-forest-50 border-forest-200 text-forest-800'
+                  : 'bg-white border-stone-200 text-stone-600'
+              }`}
+            >
+              <span
+                className={`w-7 h-4 rounded-full flex items-center px-0.5 transition-colors ${
+                  sortByDistance ? 'bg-forest-500' : 'bg-stone-300'
+                }`}
+              >
+                <span
+                  className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform ${
+                    sortByDistance ? 'translate-x-3' : 'translate-x-0'
+                  }`}
+                />
+              </span>
+              <span>Sort by Distance</span>
+            </button>
+          </div>
+        </div>
+
+        {recommendedLoading || locationLoading ? (
+          <div className="py-6 flex items-center justify-center gap-3">
+            <div className="w-5 h-5 border-2 border-forest-200 border-t-forest-600 rounded-full animate-spin" />
+            <p className="text-xs text-stone-500">
+              Finding best matches near you...
+            </p>
+          </div>
+        ) : recommendedError ? (
+          <p className="text-xs text-red-600 py-4 text-center">{recommendedError}</p>
+        ) : !recommendedDisplay.length ? (
+          <div className="py-8 text-center">
+            <p className="text-sm text-stone-400">No nearby food available</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {recommendedDisplay.map((food, index) => {
+              const distanceKm =
+                typeof food.distanceKm === 'number'
+                  ? food.distanceKm
+                  : food.distance;
+              const distanceLabel =
+                Number.isFinite(distanceKm) && distanceKm >= 0
+                  ? `${distanceKm.toFixed(2)} km away`
+                  : 'Distance unavailable';
+
+              const isBest = index === 0;
+
+              return (
+                <div
+                  key={food._id}
+                  className={`relative flex items-start justify-between gap-3 rounded-xl border transition-all ${
+                    isBest
+                      ? 'border-forest-300 bg-forest-50/80 shadow-sm scale-[1.01]'
+                      : 'border-stone-100 bg-white hover:border-forest-200 hover:bg-forest-50/40'
+                  } p-3`}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-semibold text-sm text-stone-900">
+                        {food.foodName}
+                      </p>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                          isBest
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-blue-100 text-blue-800 border border-blue-200'
+                        }`}
+                      >
+                        {isBest ? 'Nearest · Best Match' : 'Close Match'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-500 mb-1">
+                      {food.remainingQuantity} {food.unit} remaining
+                      {food.location ? ` · ${food.location}` : ''}
+                    </p>
+                    <p className="text-[11px] text-stone-400">
+                      Expires{' '}
+                      {food.expiryTime
+                        ? new Date(food.expiryTime).toLocaleString()
+                        : '—'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-1">
+                    <p className="text-xs font-semibold text-emerald-700">
+                      {distanceLabel}
+                    </p>
+                    {typeof food.priorityScore === 'number' && (
+                      <p className="text-[10px] text-stone-400">
+                        Match score:{' '}
+                        {food.priorityScore.toFixed(3)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -174,19 +174,6 @@ async function deleteFood(req, res) {
   }
 }
 
-/**
- * GET /food/recommended
- *
- * Smart matching prioritization for seekers:
- * 1) distance (nearest first)
- * 2) expiry time (earliest expiry first)
- * 3) available quantity (sufficient quantity preferred)
- *
- * priorityScore:
- *   (w1 / distance) + (w2 / timeRemaining) + (w3 * remainingQuantity)
- *
- * We normalize/clamp intermediate values to avoid extreme bias (e.g. distance=0).
- */
 async function getRecommendedFood(req, res) {
   try {
     const userLat = Number(req.query.lat);
@@ -200,63 +187,81 @@ async function getRecommendedFood(req, res) {
       return res.status(400).json({ message: 'lat/lng out of range' });
     }
 
-    const now = Date.now(); // currentTime
-    const radiusKm = Number(req.query.radiusKm) || 25; // prefilter for performance
+    const now = Date.now();
+    const radiusKm = Number(req.query.radiusKm) || 25; // optional pre-filter for performance
 
     const latRad = (userLat * Math.PI) / 180;
     const deltaLat = radiusKm / 111;
     const deltaLng = radiusKm / (111 * Math.cos(latRad) || 1);
 
+    // 1) Filter: status/quantity/expiry and coarse geo bounding box
     const candidates = await Food.find({
       status: 'available',
       remainingQuantity: { $gt: 0 },
       expiryTime: { $gt: new Date(now) },
-      // Use a bounding box for performance (then score with exact haversine below)
       lat: { $ne: null, $gte: userLat - deltaLat, $lte: userLat + deltaLat },
       lng: { $ne: null, $gte: userLng - deltaLng, $lte: userLng + deltaLng },
     })
       .populate('providerId', 'name email')
       .lean();
 
-    // Normalize quantity using the maximum in this candidate set (reduces extreme bias).
+    if (!candidates.length) {
+      return res.json([]);
+    }
+
+    // 2) Compute exact distance for each candidate using Haversine
+    const withDistance = candidates
+      .map((food) => {
+        const distanceKm = haversineKm(userLat, userLng, food.lat, food.lng);
+        if (!Number.isFinite(distanceKm)) return null;
+        return { ...food, distanceKm };
+      })
+      .filter(Boolean);
+
+    if (!withDistance.length) {
+      return res.json([]);
+    }
+
+    // 3) Sort strictly by distance ascending (nearest first)
+    withDistance.sort((a, b) => a.distanceKm - b.distanceKm);
+
+    // 4) Normalize quantity within this candidate set
     const maxRemaining = Math.max(
       1,
-      ...candidates.map((f) => (Number.isFinite(f.remainingQuantity) ? f.remainingQuantity : 0))
+      ...withDistance.map((f) =>
+        Number.isFinite(f.remainingQuantity) ? f.remainingQuantity : 0
+      )
     );
 
-    const w1 = 0.5; // distance weight
-    const w2 = 0.3; // expiry-time weight
-    const w3 = 0.2; // quantity weight
-
-    const scored = candidates.map((food) => {
-      const distanceKm = haversineKm(userLat, userLng, food.lat, food.lng);
-      if (!Number.isFinite(distanceKm)) return null;
-
-      // timeRemaining = expiryTime - currentTime
-      const timeRemainingMs = new Date(food.expiryTime).getTime() - now;
-      const timeRemainingHours = timeRemainingMs / (1000 * 60 * 60);
-
-      // Clamp values to avoid infinities / extreme scores.
-      const distanceClamped = Math.min(Math.max(distanceKm, 0.1), 50); // km
-      const timeHoursClamped = Math.min(Math.max(timeRemainingHours, 0.05), 48); // hours
-
-      // remainingQuantity normalized to 0..1 (derived from remainingQuantity)
-      const remainingQuantityNormalized = food.remainingQuantity / maxRemaining;
-
+    const scored = withDistance.map((food) => {
+      const normalizedQuantity = food.remainingQuantity / maxRemaining;
       const priorityScore =
-        w1 / distanceClamped + w2 / timeHoursClamped + w3 * remainingQuantityNormalized;
+        0.9 * (1 / (food.distanceKm + 0.001)) + 0.1 * normalizedQuantity;
 
       return {
         ...food,
-        distanceKm,
-        timeRemainingMs,
         priorityScore,
       };
     });
 
-    const cleaned = scored.filter(Boolean);
-    cleaned.sort((a, b) => b.priorityScore - a.priorityScore);
-    res.json(cleaned.slice(0, limit));
+    // 5) Final sort by priorityScore DESC (distance-dominated)
+    scored.sort((a, b) => b.priorityScore - a.priorityScore);
+
+    // 6) Shape response: expose core fields + distance & score
+    const top = scored.slice(0, limit).map((food) => ({
+      _id: food._id,
+      foodName: food.foodName,
+      remainingQuantity: food.remainingQuantity,
+      unit: food.unit,
+      location: food.location,
+      expiryTime: food.expiryTime,
+      lat: food.lat,
+      lng: food.lng,
+      distanceKm: food.distanceKm,
+      priorityScore: food.priorityScore,
+    }));
+
+    res.json(top);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
