@@ -1,48 +1,69 @@
-import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import L from 'leaflet';
+import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import MapView from '../../components/MapView';
+import RequestModal from '../../components/RequestModal';
 import LoadingSpinner from '../../components/LoadingSpinner';
-
-// Fix default marker icons
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
-
-const greenIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+import useUserLocation from '../../hooks/useUserLocation';
 
 export default function FoodMap() {
   const [foods, setFoods] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingFoods, setLoadingFoods] = useState(true);
   const [selected, setSelected] = useState(null);
-  const [userLocation, setUserLocation] = useState([17.385, 78.4867]); // Default: Hyderabad
+  const [requestFood, setRequestFood] = useState(null);
+
+  const {
+    lat,
+    lng,
+    loading: loadingLocation,
+    error: locationError,
+    permissionDenied,
+    requestLocation,
+  } = useUserLocation();
+
+  const [recommended, setRecommended] = useState([]);
+  const [loadingRecommended, setLoadingRecommended] = useState(true);
+
+  const foodsWithCoords = useMemo(
+    () => (foods || []).filter((f) => f && Number.isFinite(f.lat) && Number.isFinite(f.lng)),
+    [foods]
+  );
+
+  const fetchFoods = async () => {
+    try {
+      const { data } = await api.get('/food/all');
+      setFoods(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error('Failed to load food locations');
+    } finally {
+      setLoadingFoods(false);
+    }
+  };
 
   useEffect(() => {
-    api.get('/food/all')
-      .then(({ data }) => setFoods(data.filter((f) => f.lat && f.lng)))
-      .catch(() => toast.error('Failed to load food locations'))
-      .finally(() => setLoading(false));
-
-    navigator.geolocation?.getCurrentPosition(
-      (pos) => setUserLocation([pos.coords.latitude, pos.coords.longitude]),
-      () => {}
-    );
+    fetchFoods();
   }, []);
 
-  const foodsWithCoords = foods.filter((f) => f.lat && f.lng);
+  // Save location so backend can later find nearby seekers for smart notifications.
+  useEffect(() => {
+    if (loadingLocation) return;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    api.put('/user/location', { lat, lng }).catch(() => {});
+  }, [lat, lng, loadingLocation]);
 
-  if (loading) return <LoadingSpinner text="Loading food map..." />;
+  // Fetch smart recommendations once location is known (fallback is still a valid lat/lng).
+  useEffect(() => {
+    if (loadingLocation) return;
+
+    setLoadingRecommended(true);
+    api
+      .get('/food/recommended', { params: { lat, lng, limit: 5 } })
+      .then(({ data }) => setRecommended(Array.isArray(data) ? data : []))
+      .catch(() => toast.error('Failed to load recommendations'))
+      .finally(() => setLoadingRecommended(false));
+  }, [lat, lng, loadingLocation]);
+
+  const bestMatchId = recommended?.[0]?._id;
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -53,63 +74,118 @@ export default function FoodMap() {
         </p>
       </div>
 
-      {/* Legend */}
-      <div className="card py-3 flex items-center gap-4 flex-wrap text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500 rounded-full" />
-          <span className="text-stone-600">Available Food</span>
+      {/* Legend + permission handling */}
+      <div className="card py-3 flex items-center justify-between gap-4 flex-wrap text-sm px-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full" />
+            <span className="text-stone-600">High quantity</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-orange-500 rounded-full" />
+            <span className="text-stone-600">Medium quantity</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-red-500 rounded-full" />
+            <span className="text-stone-600">Low / expiring soon</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-blue-500 rounded-full" />
+            <span className="text-stone-600">Your Location</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-blue-500 rounded-full" />
-          <span className="text-stone-600">Your Location</span>
-        </div>
-        {foodsWithCoords.length === 0 && (
-          <span className="text-amber-600 text-sm">
-            ⚠️ No food listings have GPS coordinates yet. Providers need to add location when listing.
+
+        {permissionDenied ? (
+          <span className="text-amber-700 text-sm font-medium">
+            ⚠️ Location denied. Showing a default area.
+          </span>
+        ) : (
+          <span className="text-stone-400 text-sm">
+            {loadingLocation ? 'Detecting your location...' : 'Location ready.'}
           </span>
         )}
       </div>
 
+      {permissionDenied && (
+        <div className="card py-3 px-4 flex items-center justify-between gap-4 flex-wrap">
+          <div className="text-sm text-stone-600">
+            We couldn’t access your GPS. You can still browse using the default map location.
+          </div>
+          <button type="button" onClick={requestLocation} className="btn-secondary">
+            Detect My Location
+          </button>
+        </div>
+      )}
+
+      {locationError && !permissionDenied && (
+        <div className="card py-3 px-4 text-sm text-red-600">
+          {locationError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Map */}
-        <div className="lg:col-span-2 card p-0 overflow-hidden" style={{ height: '480px' }}>
-          <MapContainer
-            center={userLocation}
-            zoom={12}
-            style={{ height: '100%', width: '100%' }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            {foodsWithCoords.map((food) => (
-              <Marker
-                key={food._id}
-                position={[food.lat, food.lng]}
-                icon={greenIcon}
-                eventHandlers={{ click: () => setSelected(food) }}
-              >
-                <Popup>
-                  <div className="text-sm min-w-[160px]">
-                    <p className="font-semibold text-stone-800">{food.foodName}</p>
-                    <p className="text-stone-500 text-xs mt-1">{food.quantity}</p>
-                    <p className="text-stone-500 text-xs">{food.location}</p>
-                    <p className="text-stone-400 text-xs mt-1">By {food.providerId?.name}</p>
-                    <p className="text-xs mt-1 text-amber-600">
-                      Expires: {new Date(food.expiryTime).toLocaleDateString()}
-                    </p>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
+        <div className="lg:col-span-2 space-y-4">
+          {loadingFoods && foodsWithCoords.length === 0 && (
+            <LoadingSpinner text="Loading food map..." />
+          )}
+
+          <MapView
+            foods={foodsWithCoords}
+            userLocation={{ lat, lng }}
+            onSelectFood={(food) => setSelected(food)}
+            onRequestFood={(food) => setRequestFood(food)}
+          />
         </div>
 
-        {/* Sidebar list */}
         <div className="card p-0 overflow-hidden flex flex-col" style={{ maxHeight: '480px' }}>
+          <div className="px-4 py-3 border-b border-stone-100">
+            <p className="font-semibold text-stone-700 text-sm">Recommended for You</p>
+            <p className="text-xs text-stone-400 mt-1">
+              Top picks based on distance, expiry, and quantity
+            </p>
+          </div>
+
+          <div className="px-4 py-3 border-b border-stone-100 space-y-2">
+            {loadingRecommended ? (
+              <div className="text-sm text-stone-400">Loading recommendations...</div>
+            ) : recommended.length === 0 ? (
+              <div className="text-sm text-stone-400">No recommendations available yet.</div>
+            ) : (
+              recommended.slice(0, 5).map((food, idx) => (
+                <div
+                  key={food._id}
+                  onClick={() => setSelected(food)}
+                  className={`cursor-pointer p-2 rounded-lg transition-colors ${
+                    selected?._id === food._id
+                      ? 'bg-forest-50 border-l-2 border-forest-500'
+                      : 'hover:bg-stone-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 justify-between">
+                    <p className="font-medium text-stone-800 text-sm line-clamp-1">
+                      {food.foodName}
+                    </p>
+                    {idx === 0 && bestMatchId === food._id && (
+                      <span className="text-xs bg-forest-600 text-white px-2 py-0.5 rounded-full font-medium">
+                        Best Match
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-stone-400 mt-1">
+                    {food.remainingQuantity} {food.unit} left
+                  </div>
+                  <div className="text-xs text-stone-400">
+                    Expires {new Date(food.expiryTime).toLocaleString()}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
           <div className="px-4 py-3 border-b border-stone-100">
             <p className="font-semibold text-stone-700 text-sm">Listings on Map</p>
           </div>
+
           <div className="overflow-y-auto flex-1 divide-y divide-stone-50">
             {foodsWithCoords.length === 0 ? (
               <div className="p-6 text-center text-stone-400 text-sm">
@@ -127,12 +203,9 @@ export default function FoodMap() {
                 >
                   <p className="font-medium text-stone-800 text-sm">{food.foodName}</p>
                   <p className="text-xs text-stone-400 mt-0.5">{food.location}</p>
-                  <p className="text-xs text-stone-400">{food.quantity} · {food.providerId?.name}</p>
-                  <div className={`mt-1 text-xs font-medium ${
-                    food.status === 'available' ? 'text-forest-600' : 'text-stone-400'
-                  }`}>
-                    {food.status === 'available' ? '✅ Available' : `${food.status}`}
-                  </div>
+                  <p className="text-xs text-stone-400">
+                    {food.remainingQuantity} {food.unit} · {food.providerId?.name}
+                  </p>
                 </div>
               ))
             )}
@@ -140,21 +213,18 @@ export default function FoodMap() {
         </div>
       </div>
 
-      {/* Selected food detail */}
       {selected && (
         <div className="card border-forest-200 bg-forest-50/30 animate-slide-up">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-semibold text-stone-800 text-lg">{selected.foodName}</h3>
               <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-stone-600">
-                <p>📦 {selected.quantity}</p>
+                <p>📦 {selected.remainingQuantity} {selected.unit}</p>
                 <p>📍 {selected.location}</p>
                 <p>👤 {selected.providerId?.name}</p>
                 <p>⏰ Expires: {new Date(selected.expiryTime).toLocaleDateString()}</p>
               </div>
-              {selected.description && (
-                <p className="text-sm text-stone-500 mt-2">{selected.description}</p>
-              )}
+              {selected.description && <p className="text-sm text-stone-500 mt-2">{selected.description}</p>}
             </div>
             <button
               onClick={() => setSelected(null)}
@@ -164,6 +234,14 @@ export default function FoodMap() {
             </button>
           </div>
         </div>
+      )}
+
+      {requestFood && (
+        <RequestModal
+          food={requestFood}
+          onClose={() => setRequestFood(null)}
+          onSuccess={fetchFoods}
+        />
       )}
     </div>
   );

@@ -7,6 +7,10 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['admin', 'provider', 'seeker'], default: 'seeker' },
+    // Last known seeker location (used for smart matching/notifications).
+    // Optional so existing users and records remain valid.
+    lastLat: { type: Number },
+    lastLng: { type: Number },
   },
   { timestamps: true }
 );

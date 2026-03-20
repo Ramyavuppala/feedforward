@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import api from '../../services/api';
 import StatCard from '../../components/StatCard';
+import CountUpStatCard from '../../components/CountUpStatCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -46,6 +47,13 @@ export default function AdminDashboard() {
         <StatCard label="Food Listings" value={stats.totalFoodListings} icon="🍱" color="forest" />
         <StatCard label="Active Listings" value={stats.activeFood} icon="✅" color="blue" />
         <StatCard label="Deliveries Done" value={stats.completedRequests} icon="🎉" color="earth" />
+      </div>
+
+      {/* Impact Dashboard (derived from /admin/stats) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <CountUpStatCard label="Meals Saved 🍽️" value={stats.mealsSaved || 0} icon="🍽️" color="forest" />
+        <CountUpStatCard label="People Served 👥" value={stats.peopleServed || 0} icon="👥" color="blue" />
+        <CountUpStatCard label="CO2 Saved 🌍" value={stats.co2Saved || 0} icon="🌍" color="earth" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

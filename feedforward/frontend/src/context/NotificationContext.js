@@ -36,6 +36,7 @@ export const NotificationProvider = ({ children }) => {
 
     socket.on('foodRequested', handleNotif);
     socket.on('requestUpdated', handleNotif);
+    socket.on('smartNotification', handleNotif);
     socket.on('foodAdded', () => {});
     socket.on('foodExpired', ({ foodId }) => {
       toast('A food item has expired', { icon: '⏰' });
@@ -44,6 +45,7 @@ export const NotificationProvider = ({ children }) => {
     return () => {
       socket.off('foodRequested', handleNotif);
       socket.off('requestUpdated', handleNotif);
+      socket.off('smartNotification', handleNotif);
       socket.off('foodExpired');
     };
   }, [user]);

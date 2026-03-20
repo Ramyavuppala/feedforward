@@ -103,6 +103,10 @@ async function getStats(req, res) {
       completedFood,
       distributedQuantity,
       remainingQuantity,
+      // Impact dashboard metrics (derived from existing totals)
+      mealsSaved: distributedQuantity, // total distributed quantity
+      peopleServed: completedRequests, // completed requests count
+      co2Saved: distributedQuantity * 2.5, // simple sustainability estimate
       monthlyFoods,
       monthlyRequests,
       roleDistribution,
